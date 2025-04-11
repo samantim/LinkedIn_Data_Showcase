@@ -13,12 +13,27 @@ class AdjacentImputationMethod(Enum):
     Interpolation_Linear = 3
     Interpolation_Time = 4
 
+
 class NumericDatatypeImputationMethod(Enum):
     # Enum classes make the code cleaner and avoid using invalid inputs
     # This enum specifies the method of imputation only for numeric columns, since for the categorical columns "MODE" is the only option
     MEAN = 1
     MEDIAN = 2
     MODE = 3
+
+
+def config_logging():
+    # This function configs logging and prepares it for logging process
+    # Note that logging creates logs from every operation has been done in the program which is the more flexible, durable, and powerful than only using print
+    # Whenever you want a new logging, just delete the existing one!
+    logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler("all_operations.log")
+    ]
+    )
 
 
 def load_data(file_path : str) -> pd.DataFrame:
@@ -41,7 +56,7 @@ def handle_missing_values_drop(data: pd.DataFrame) -> pd.DataFrame:
     logging.info(f"Dataset has {data.shape[0]} rows before handling missing values.\nMissing values are:\n{data.isna().sum()}")
 
     # Drop all rows containing missing values
-    data.dropna(inplace=True)
+    data = data.dropna()
 
     # Check dataset after dropping missing values
     logging.info(f"Dataset has {data.shape[0]} rows after handling missing values.")
@@ -59,16 +74,16 @@ def handle_missing_values_datatype_imputation(data : pd.DataFrame, numeric_datat
         if pd.api.types.is_numeric_dtype(data[col]):
             match numeric_datatype_imputation_method:
                 case NumericDatatypeImputationMethod.MEAN:
-                    data[col].fillna(data[col].mean(), inplace=True)
+                    data[col] = data[col].fillna(data[col].mean())
                 case NumericDatatypeImputationMethod.MEDIAN:
-                    data[col].fillna(data[col].median(), inplace=True)
+                    data[col] = data[col].fillna(data[col].median())
                 case NumericDatatypeImputationMethod.MODE:
                     # Note that in this case, mode method returns a data serie which contains all modes, so we need to take the first one
-                    data[col].fillna(data[col].mode()[0], inplace=True)
+                    data[col] = data[col].fillna(data[col].mode()[0])
         else:
             # If it is a categorical columns
             # Note that in this case, mode method returns a data serie which contains all modes, so we need to take the first one
-            data[col].fillna(data[col].mode()[0], inplace=True)
+            data[col] = data[col].fillna(data[col].mode()[0])
 
     # Check dataset after dropping missing values
     logging.info(f"Dataset has {data.shape[0]} rows after handling missing values.")
@@ -85,11 +100,11 @@ def handle_missing_values_adjacent_value_imputation(data: pd.DataFrame, adjancen
     match adjancent_imputation_method:
         case AdjacentImputationMethod.Forward:
             # Fill missing values using forward fill (Note that fillna(method='ffill') method is deprecated)
-            data.ffill(inplace=True)
+            data = data.ffill()
 
         case AdjacentImputationMethod.Backward:
             # Fill missing values using backward fill (Note that fillna(method='bfill') method is deprecated)
-            data.bfill(inplace=True)
+            data = data.bfill()
 
         case AdjacentImputationMethod.Interpolation_Linear:
             # Note that this method does not handle missing values in string columns, 
@@ -118,7 +133,7 @@ def handle_missing_values_adjacent_value_imputation(data: pd.DataFrame, adjancen
                     return pd.DataFrame()
                 
             # Change in index column to time reference column, as it is needed for time interpolation
-            data.set_index(time_reference_col, inplace=True)
+            data = data.set_index(time_reference_col)
 
             # Fill missing values using time interpolation
             for col in data.columns:
@@ -127,25 +142,13 @@ def handle_missing_values_adjacent_value_imputation(data: pd.DataFrame, adjancen
                     data[col] = data[col].interpolate(method='time')
             
             # Reset index to original
-            data.reset_index(inplace=True)
+            data = data.reset_index()
 
     # Check dataset after dropping missing values
     logging.info(f"Dataset has {data.shape[0]} rows after handling missing values.")
 
     return data
 
-def config_logging():
-    # This function configs logging and prepares it for logging process
-    # Note that logging creates logs from every operation has been done in the program which is the more flexible, durable, and powerful than only using print
-    # Whenever you want a new logging, just delete the existing one!
-    logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler("all_operations.log")
-    ]
-    )
 
 def main():
     # Start logging
