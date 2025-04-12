@@ -195,7 +195,6 @@ def main():
     if not data_cleaned_drop.empty:
         data_cleaned_drop.to_csv(path.join(cleaned_data_dir, "dataset_cleaned_drop.csv"), index=False)
 
-
     # Handle duplicate values using fuzzy method
     data = original_data.copy()
     data_cleaned_fuzzy = handle_duplicate_values_fuzzy(data=data, subset=duplicate_columns_subset, ratio_range = ratio_range)  
