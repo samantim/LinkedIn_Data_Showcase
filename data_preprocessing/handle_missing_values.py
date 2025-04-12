@@ -45,7 +45,7 @@ def load_data(file_path : str) -> pd.DataFrame:
         return pd.DataFrame()
 
     # Return the first 5 rows of the dataset
-    logging.info(data.head())
+    logging.info(f"\n{data.head()}")
 
     return data
 
@@ -176,9 +176,10 @@ def main():
     
     # Create a folder for cleaned datasets
     dataset_dir = path.dirname(dataset_path)
-    cleaned_data_dir = path.join(dataset_dir, "cleaned_data")
+    cleaned_data_dir = path.join(dataset_dir, "../", "cleaned_data_handle_missing_values")
     # Remove the directory if exists because some of the files may not need to create based on the program arguments
-    shutil.rmtree(cleaned_data_dir)
+    if path.exists(cleaned_data_dir):
+        shutil.rmtree(cleaned_data_dir)
     # Create the folder
     makedirs(cleaned_data_dir, exist_ok=True)
 
