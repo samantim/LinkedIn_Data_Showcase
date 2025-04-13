@@ -38,6 +38,14 @@ def load_data(file_path : str) -> pd.DataFrame:
 
 def handle_duplicate_values_exact(data : pd.DataFrame, subset : List = None) -> pd.DataFrame:
     # Check dataset to know how many duplicate values exist
+
+    # Check if column_subset is valid
+    try:
+        if not subset is None: data[subset]
+    except:
+        logging.error("The columns subset is not valid!")
+        return pd.DataFrame()
+    
     # Find duplicate values
         # keep='first' (default): Marks duplicates as True, except for the first occurrence.
         # keep='last': Marks duplicates as True, except for the last occurrence.
@@ -60,6 +68,13 @@ def handle_duplicate_values_exact(data : pd.DataFrame, subset : List = None) -> 
 def handle_duplicate_values_fuzzy(data : pd.DataFrame, subset : List = None, ratio_range : Tuple = None) -> pd.DataFrame:
     # Note that if ratio_range(100,100) is given to the function, the results are identical to handle_duplicate_values_drop() function
 
+    # Check if column_subset is valid
+    try:
+        if not subset is None: data[subset]
+    except:
+        logging.error("The columns subset is not valid!")
+        return pd.DataFrame()
+    
     # If ratio_range is not passed to the function it will be considered as (90,100)
     if ratio_range is None:
         ratio_range = (90,100)
@@ -134,7 +149,7 @@ def handle_duplicate_values_fuzzy(data : pd.DataFrame, subset : List = None, rat
     data = data.drop(data_duplicated_index_drop)
 
     # Check dataset rows after removing duplicate rows
-    logging.info(f"Dataset has {data.shape[0]} rows before handling duplicate values.")
+    logging.info(f"Dataset has {data.shape[0]} rows after handling duplicate values.")
 
     return data
 
