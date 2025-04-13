@@ -8,10 +8,10 @@ import logging
 
 class AdjacentImputationMethod(Enum):
     # Enum classes make the code cleaner and avoid using invalid inputs
-    Forward = 1
-    Backward = 2
-    Interpolation_Linear = 3
-    Interpolation_Time = 4
+    FORWARD = 1
+    BACKWARD = 2
+    INTERPOLATION_LINEAR = 3
+    INTERPOLATION_TIME = 4
 
 
 class NumericDatatypeImputationMethod(Enum):
@@ -98,15 +98,15 @@ def handle_missing_values_adjacent_value_imputation(data: pd.DataFrame, adjancen
 
     # Fill missing values using adjacent value imputation
     match adjancent_imputation_method:
-        case AdjacentImputationMethod.Forward:
+        case AdjacentImputationMethod.FORWARD:
             # Fill missing values using forward fill (Note that fillna(method='ffill') method is deprecated)
             data = data.ffill()
 
-        case AdjacentImputationMethod.Backward:
+        case AdjacentImputationMethod.BACKWARD:
             # Fill missing values using backward fill (Note that fillna(method='bfill') method is deprecated)
             data = data.bfill()
 
-        case AdjacentImputationMethod.Interpolation_Linear:
+        case AdjacentImputationMethod.INTERPOLATION_LINEAR:
             # Note that this method does not handle missing values in string columns, 
             # so it is needed to combine it with other methods to handle missing values also in string columns
 
@@ -116,7 +116,7 @@ def handle_missing_values_adjacent_value_imputation(data: pd.DataFrame, adjancen
                 if pd.api.types.is_numeric_dtype(data[col]):
                     data[col] = data[col].interpolate(method='linear')
 
-        case AdjacentImputationMethod.Interpolation_Time:
+        case AdjacentImputationMethod.INTERPOLATION_TIME:
             # Note that this method does not handle missing values in string columns, 
             # so it is needed to combine it with other methods to handle missing values also in string columns
 
@@ -216,28 +216,28 @@ def main():
 
     # Handle missing values using adjacent value imputation Forward
     data = original_data.copy()
-    data_cleaned_adjacent_value_imputation_forward = handle_missing_values_adjacent_value_imputation(data, AdjacentImputationMethod.Forward)
+    data_cleaned_adjacent_value_imputation_forward = handle_missing_values_adjacent_value_imputation(data, AdjacentImputationMethod.FORWARD)
     # Save the cleaned dataset by forward imputation if the cleaned dataset is not empty
     if not data_cleaned_adjacent_value_imputation_forward.empty:
         data_cleaned_adjacent_value_imputation_forward.to_csv(path.join(cleaned_data_dir, "dataset_cleaned_adjacent_value_imputation_forward.csv"), index=False)
 
     # Handle missing values using adjacent value imputation Backward
     data = original_data.copy()
-    data_cleaned_adjacent_value_imputation_backward = handle_missing_values_adjacent_value_imputation(data, AdjacentImputationMethod.Backward)
+    data_cleaned_adjacent_value_imputation_backward = handle_missing_values_adjacent_value_imputation(data, AdjacentImputationMethod.BACKWARD)
     # Save the cleaned dataset by backward imputation if the cleaned dataset is not empty
     if not data_cleaned_adjacent_value_imputation_backward.empty:
         data_cleaned_adjacent_value_imputation_backward.to_csv(path.join(cleaned_data_dir, "dataset_cleaned_adjacent_value_imputation_backward.csv"), index=False)
     
     # Handle missing values using adjacent value imputation Interpolation_Linear
     data = original_data.copy()
-    data_cleaned_adjacent_value_imputation_interpolation_linear = handle_missing_values_adjacent_value_imputation(data, AdjacentImputationMethod.Interpolation_Linear)
+    data_cleaned_adjacent_value_imputation_interpolation_linear = handle_missing_values_adjacent_value_imputation(data, AdjacentImputationMethod.INTERPOLATION_LINEAR)
     # Save the cleaned dataset by linear interpolation if the cleaned dataset is not empty
     if not data_cleaned_adjacent_value_imputation_interpolation_linear.empty:
         data_cleaned_adjacent_value_imputation_interpolation_linear.to_csv(path.join(cleaned_data_dir, "dataset_cleaned_adjacent_value_imputation_interpolation_linear.csv"), index=False)
     
     # Handle missing values using adjacent value imputation Interpolation_Time
     data = original_data.copy()
-    data_cleaned_adjacent_value_imputation_interpolation_time = handle_missing_values_adjacent_value_imputation(data, AdjacentImputationMethod.Interpolation_Time, time_reference_col)
+    data_cleaned_adjacent_value_imputation_interpolation_time = handle_missing_values_adjacent_value_imputation(data, AdjacentImputationMethod.INTERPOLATION_TIME, time_reference_col)
     # Save the cleaned dataset by time interpolation if the cleaned dataset is not empty
     if not data_cleaned_adjacent_value_imputation_interpolation_time.empty:
         data_cleaned_adjacent_value_imputation_interpolation_time.to_csv(path.join(cleaned_data_dir, "dataset_cleaned_adjacent_value_imputation_interpolation_time.csv"), index=False)
