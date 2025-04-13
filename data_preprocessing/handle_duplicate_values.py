@@ -36,7 +36,7 @@ def load_data(file_path : str) -> pd.DataFrame:
     return data
 
 
-def handle_duplicate_values_drop(data : pd.DataFrame, subset : List = None) -> pd.DataFrame:
+def handle_duplicate_values_exact(data : pd.DataFrame, subset : List = None) -> pd.DataFrame:
     # Check dataset to know how many duplicate values exist
     # Find duplicate values
         # keep='first' (default): Marks duplicates as True, except for the first occurrence.
@@ -190,7 +190,7 @@ def main():
 
     # Handle duplicate values using drop method
     data = original_data.copy()
-    data_cleaned_drop = handle_duplicate_values_drop(data=data, subset=duplicate_columns_subset)
+    data_cleaned_drop = handle_duplicate_values_exact(data=data, subset=duplicate_columns_subset)
     # Save the cleaned dataset by dropping rows if the cleaned dataset is not empty
     if not data_cleaned_drop.empty:
         data_cleaned_drop.to_csv(path.join(cleaned_data_dir, "dataset_cleaned_drop.csv"), index=False)
