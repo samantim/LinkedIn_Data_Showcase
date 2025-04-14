@@ -193,55 +193,22 @@ def main():
     if not data_cleaned_drop.empty:
         data_cleaned_drop.to_csv(path.join(output_dir, "dataset_cleaned_drop.csv"), index=False)
 
-    # Handle missing values by using datatype imputation Mean for numeric columns
-    data = original_data.copy()
-    data_cleaned_datatype_imputation_mean = handle_missing_values_datatype_imputation(data, NumericDatatypeImputationMethod.MEAN)
-    # Save the cleaned dataset by dropping rows if the cleaned dataset is not empty
-    if not data_cleaned_datatype_imputation_mean.empty:
-        data_cleaned_datatype_imputation_mean.to_csv(path.join(output_dir, "dataset_cleaned_datatype_imputation_mean.csv"), index=False)
- 
-    # Handle missing values by using datatype imputation Median for numeric columns
-    data = original_data.copy()
-    data_cleaned_datatype_imputation_median = handle_missing_values_datatype_imputation(data, NumericDatatypeImputationMethod.MEDIAN)
-    # Save the cleaned dataset by dropping rows if the cleaned dataset is not empty
-    if not data_cleaned_datatype_imputation_median.empty:
-        data_cleaned_datatype_imputation_median.to_csv(path.join(output_dir, "dataset_cleaned_datatype_imputation_median.csv"), index=False)
+    # Handle missing values by using datatype imputation for numeric columns
+    for numeric_datatype_imputation_method in list(NumericDatatypeImputationMethod):
+        data = original_data.copy()
+        data_cleaned_datatype_imputation = handle_missing_values_datatype_imputation(data, numeric_datatype_imputation_method)
+        # Save the cleaned dataset by replacing values if the cleaned dataset is not empty
+        if not data_cleaned_datatype_imputation.empty:
+            data_cleaned_datatype_imputation.to_csv(path.join(output_dir, "dataset_cleaned_datatype_imputation_" + f"{numeric_datatype_imputation_method.name}.csv"), index=False)
 
-    # Handle missing values by using datatype imputation Mode for numeric columns
-    data = original_data.copy()
-    data_cleaned_datatype_imputation_mode = handle_missing_values_datatype_imputation(data, NumericDatatypeImputationMethod.MODE)
-    # Save the cleaned dataset by dropping rows if the cleaned dataset is not empty
-    if not data_cleaned_datatype_imputation_mode.empty:
-        data_cleaned_datatype_imputation_mode.to_csv(path.join(output_dir, "dataset_cleaned_datatype_imputation_mode.csv"), index=False)
+    # Handle missing values using adjacent value imputation
+    for adjacent_imputation_method in list(AdjacentImputationMethod):
+        data = original_data.copy()
+        data_cleaned_adjacent_value_imputation = handle_missing_values_adjacent_value_imputation(data, adjacent_imputation_method, time_reference_col)
+        # Save the cleaned dataset by replacing values if the cleaned dataset is not empty
+        if not data_cleaned_adjacent_value_imputation.empty:
+            data_cleaned_adjacent_value_imputation.to_csv(path.join(output_dir, "dataset_cleaned_adjacent_value_imputation_" + f"{adjacent_imputation_method.name}.csv"), index=False)
 
-    # Handle missing values using adjacent value imputation Forward
-    data = original_data.copy()
-    data_cleaned_adjacent_value_imputation_forward = handle_missing_values_adjacent_value_imputation(data, AdjacentImputationMethod.FORWARD)
-    # Save the cleaned dataset by forward imputation if the cleaned dataset is not empty
-    if not data_cleaned_adjacent_value_imputation_forward.empty:
-        data_cleaned_adjacent_value_imputation_forward.to_csv(path.join(output_dir, "dataset_cleaned_adjacent_value_imputation_forward.csv"), index=False)
-
-    # Handle missing values using adjacent value imputation Backward
-    data = original_data.copy()
-    data_cleaned_adjacent_value_imputation_backward = handle_missing_values_adjacent_value_imputation(data, AdjacentImputationMethod.BACKWARD)
-    # Save the cleaned dataset by backward imputation if the cleaned dataset is not empty
-    if not data_cleaned_adjacent_value_imputation_backward.empty:
-        data_cleaned_adjacent_value_imputation_backward.to_csv(path.join(output_dir, "dataset_cleaned_adjacent_value_imputation_backward.csv"), index=False)
-    
-    # Handle missing values using adjacent value imputation Interpolation_Linear
-    data = original_data.copy()
-    data_cleaned_adjacent_value_imputation_interpolation_linear = handle_missing_values_adjacent_value_imputation(data, AdjacentImputationMethod.INTERPOLATION_LINEAR)
-    # Save the cleaned dataset by linear interpolation if the cleaned dataset is not empty
-    if not data_cleaned_adjacent_value_imputation_interpolation_linear.empty:
-        data_cleaned_adjacent_value_imputation_interpolation_linear.to_csv(path.join(output_dir, "dataset_cleaned_adjacent_value_imputation_interpolation_linear.csv"), index=False)
-    
-    # Handle missing values using adjacent value imputation Interpolation_Time
-    data = original_data.copy()
-    data_cleaned_adjacent_value_imputation_interpolation_time = handle_missing_values_adjacent_value_imputation(data, AdjacentImputationMethod.INTERPOLATION_TIME, time_reference_col)
-    # Save the cleaned dataset by time interpolation if the cleaned dataset is not empty
-    if not data_cleaned_adjacent_value_imputation_interpolation_time.empty:
-        data_cleaned_adjacent_value_imputation_interpolation_time.to_csv(path.join(output_dir, "dataset_cleaned_adjacent_value_imputation_interpolation_time.csv"), index=False)
-    
 
 if __name__ == "__main__":
     main()
