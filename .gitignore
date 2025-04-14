@@ -44,6 +44,11 @@ outputs
 *.sql
 log.*
 
+# images #
+######################
+*.jpg
+*.png
+
 # OS generated files #
 ######################
 .DS_Store

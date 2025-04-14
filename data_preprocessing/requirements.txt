@@ -2,4 +2,6 @@ pandas
 numpy
 pytest
 rapidfuzz
- 
+scikit-learn
+matplotlib
+seaborn

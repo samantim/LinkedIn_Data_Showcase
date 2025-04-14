@@ -6,13 +6,16 @@ from os import path, makedirs
 from typing import List, Dict, Tuple
 import shutil
 import logging
+from sklearn.ensemble import IsolationForest
+from sklearn.neighbors import LocalOutlierFactor
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 class DetectOutlierMethod(Enum):
     IQR = 1
     ZSCORE = 2
     ISOLATION_FOREST = 3
     LOCAL_OUTLIER_FACTOR = 4
-    ONECLASS_SVM = 5
 
 class HandleOutlierMethod(Enum):
     DROP = 1
@@ -66,10 +69,23 @@ def get_observing_columns(data : pd.DataFrame, columns_subset : List) -> List:
     return observing_columns    
 
 
-def detect_outliers(data : pd.DataFrame, detect_outlier_method : DetectOutlierMethod, columns_subset : List = None) -> Tuple:
+def detect_outliers(data : pd.DataFrame, detect_outlier_method : DetectOutlierMethod, columns_subset : List = None, contamination_rate : float | str = "auto" , n_neighbors : int = 20) -> Tuple:
+    # Parameter contamination_rate is used for training ISOLATION FOREST LOCAL OUTLIER FACTOR models to set the boundries for outliers
+    # Parameter n_neighbors is used for training OUTLIER FACTOR models to set the number of observing neighbors
+
     # Check if column_subset is valid
     observing_columns = get_observing_columns(data, columns_subset)
     if len(observing_columns) == 0: return dict(), dict()
+
+    # Validating contamination_rate
+    if contamination_rate != "auto":
+        try:
+            contamination_rate = float(contamination_rate)
+            if not (0.0 < contamination_rate <= 0.5):
+                raise ValueError
+        except (TypeError, ValueError):
+            logging.error("The 'contamination' parameter of IsolationForest must be a str among {'auto'} or a float in the range (0.0, 0.5]")
+            return dict(), dict()
 
     outliers = {}
     boundries = {}
@@ -96,12 +112,31 @@ def detect_outliers(data : pd.DataFrame, detect_outlier_method : DetectOutlierMe
                 boundries[col] = (mean - 3 * std, mean + 3 * std)
 
         case DetectOutlierMethod.ISOLATION_FOREST:
-            pass
+            for col in observing_columns:
+                # Create an object of the IsolationForest class, then train it and get the predictions based on the contamination_rate
+                isolation_forest = IsolationForest(contamination=contamination_rate, random_state=42)
+                # Be careful about the input formation. e.g., fit_predict accepts dataframe not a series. So, should give data[[col]] not data[col]
+                predictions = isolation_forest.fit_predict(data[[col]])
+                # if the prediction == -1 means it is an outlier
+                outliers[col] = data[predictions == -1].index.to_list()
+                # Isolation forest method, rather than IQR and Z-Score, does not have native boundries. So, we use the min and max value of inliers for that
+                lower = data[col].loc[~data.index.isin(outliers[col])].min()
+                upper = data[col].loc[~data.index.isin(outliers[col])].max()
+                boundries[col] = (lower, upper)
+
         case DetectOutlierMethod.LOCAL_OUTLIER_FACTOR:
-            pass
-        case DetectOutlierMethod.ONECLASS_SVM:
-            pass
-    
+            for col in observing_columns:
+                # Create an object of the LocalOutlierFactor class, then train it and get the predictions based on the contamination_rate and n_neighbors
+                local_outlier_factor = LocalOutlierFactor(contamination=contamination_rate, n_neighbors=n_neighbors)
+                # Be careful about the input formation. e.g., fit_predict accepts dataframe not a series. So, should give data[[col]] not data[col]
+                predictions = local_outlier_factor.fit_predict(data[[col]])
+                # if the prediction == -1 means it is an outlier
+                outliers[col] = data[predictions == -1].index.to_list()
+                # Local outlier factor method, rather than IQR and Z-Score, does not have native boundries. So, we use the min and max value of inliers for that
+                lower = data[col].loc[~data.index.isin(outliers[col])].min()
+                upper = data[col].loc[~data.index.isin(outliers[col])].max()
+                boundries[col] = (lower, upper)
+
     # Output of the function is a Tuple consists of oulier indexes dict and boundries on inliers dict
     return outliers, boundries
 
@@ -115,7 +150,7 @@ def handle_outliers(data : pd.DataFrame, handle_outlier_method : HandleOutlierMe
     
     # Check dataset to know how many duplicate values exist
     # Find duplicate values
-    logging.info(f"Dataset has {data.shape[0]} rows before handling outliers values.\nTop 10 of rows containing outliers are (Totally {len(all_drop_indexes)} rows):\n{data.iloc[list(all_drop_indexes)]}")
+    logging.info(f"Dataset has {data.shape[0]} rows before handling outliers values.\nTop 10 of rows containing outliers are (Totally {len(all_drop_indexes)} rows):\n{data.iloc[list(all_drop_indexes)].head(10)}")
 
     match handle_outlier_method:
         case HandleOutlierMethod.DROP:
@@ -129,7 +164,10 @@ def handle_outliers(data : pd.DataFrame, handle_outlier_method : HandleOutlierMe
             for col in outliers.keys():
                 # For each column which has outliers, all the outliers cap (clip) with boundry values of that column
                 lower, upper = boundries[col]
-                print(lower, upper)
+                # If the boundries are float, the column type should be converted to float (implicit casting is deprecated)
+                # "isinstance" is safer than "type", since it also include numpy types
+                if isinstance(lower, float) or isinstance(upper, float):
+                    data[col] = data[col].astype(float)
                 data.loc[outliers[col], col] = data.loc[outliers[col], col].clip(lower, upper)
 
     # Check dataset rows after removing duplicate rows
@@ -138,6 +176,43 @@ def handle_outliers(data : pd.DataFrame, handle_outlier_method : HandleOutlierMe
     return data
 
 
+def visualize_outliers(original_data : pd.DataFrame, cleaned_data : pd.DataFrame, output_dir : str, detect_outlier_method : DetectOutlierMethod, handle_outlier_method : HandleOutlierMethod, columns_subset : List = None):
+    # Check if column_subset is valid
+    observing_columns = get_observing_columns(original_data, columns_subset)
+    if len(observing_columns) == 0: return
+
+    # Make the visualization directory path
+    visualization_dir = path.join(output_dir, "visualizations")
+    # Remove the directory if exists because some of the files may not need to create based on the program arguments
+    if path.exists(visualization_dir):
+        shutil.rmtree(visualization_dir)
+    # Create the folder
+    makedirs(visualization_dir, exist_ok=True)
+
+
+    for col in observing_columns:
+        # Set the resolution and quality
+        fig = plt.figure(figsize=(16, 9), dpi=600)
+        # Setup the layout to fit in the figure
+        plt.tight_layout(pad=1, h_pad=0.5, w_pad=0.5)         
+        
+        plt.subplot(2,2,1)
+        sns.boxplot(original_data[col])
+
+        plt.subplot(2,2,2)
+        sns.histplot(original_data[col], kde=True)
+
+        plt.subplot(2,2,3)
+        sns.boxplot(cleaned_data[col])
+
+        plt.subplot(2,2,4)
+        sns.histplot(cleaned_data[col], kde=True)
+
+        # Save the file with proper dpi
+        file_name = path.join(visualization_dir, "_".join([detect_outlier_method.name, handle_outlier_method.name, col]) + ".png")
+        plt.savefig(fname=file_name, format="png", dpi=fig.dpi)
+
+    
 def main():
     # Start logging
     config_logging()
@@ -168,34 +243,129 @@ def main():
     
     # Create a folder for cleaned datasets
     dataset_dir = path.dirname(dataset_path)
-    cleaned_data_dir = path.join(dataset_dir, "../", "cleaned_data_handle_outliers")
+    output_dir = path.join(dataset_dir, "../", "output_handle_outliers")
     # Remove the directory if exists because some of the files may not need to create based on the program arguments
-    if path.exists(cleaned_data_dir):
-        shutil.rmtree(cleaned_data_dir)
+    if path.exists(output_dir):
+        shutil.rmtree(output_dir)
     # Create the folder
-    makedirs(cleaned_data_dir, exist_ok=True)
+    makedirs(output_dir, exist_ok=True)
+
+    # -------------------------------
+    # Detect outliers by all methods including IQR, ZSCORE, ISOLATION_FOREST, LOCAL_OUTLIER_FACTOR
+    # -------------------------------
 
     # Detect outliers using IQR method
     data = original_data.copy()
     outliers_IQR, cap_boundries_IQR = detect_outliers(data, DetectOutlierMethod.IQR, columns_subset)
 
-    # Detect outliers using IQR method
+    # Detect outliers using ZSCORE method
     data = original_data.copy()
     outliers_zscore, cap_boundries_zscore = detect_outliers(data, DetectOutlierMethod.ZSCORE, columns_subset)
 
+    # Detect outliers using ISOLATION_FOREST method
+    data = original_data.copy()
+    outliers_isolation_forest, cap_boundries_isolation_forest = detect_outliers(data, DetectOutlierMethod.ISOLATION_FOREST, columns_subset, contamination_rate=0.05)
+
+    # Detect outliers using LOCAL_OUTLIER_FACTOR method
+    data = original_data.copy()
+    outliers_local_outlier_factor, cap_boundries_local_outlier_factor = detect_outliers(data, DetectOutlierMethod.LOCAL_OUTLIER_FACTOR, columns_subset, contamination_rate=0.05, n_neighbors=20)
+
+    # -------------------------------
+    # Handle outliers by DROP method based on outliers detected via IQR, ZSCORE, ISOLATION_FOREST, LOCAL_OUTLIER_FACTOR methods + Visualizations
+    # -------------------------------
+
     # Drop outliers using IQR method
     data = original_data.copy()
-    data_cleaned_IQR_drop = handle_outliers(data, HandleOutlierMethod.CAP_WITH_BOUNDARIES, outliers_IQR, cap_boundries_IQR)
+    data_cleaned_IQR_drop = handle_outliers(data, HandleOutlierMethod.DROP, outliers_IQR, cap_boundries_IQR)
     # Save the cleaned dataset is not empty
-    if not data_cleaned_IQR_drop.empty > 0:
-        data_cleaned_IQR_drop.to_csv(path.join(cleaned_data_dir, "dataset_cleaned_IQR_drop.csv"), index=False)
+    if not data_cleaned_IQR_drop.empty:
+        data_cleaned_IQR_drop.to_csv(path.join(output_dir, "dataset_cleaned_IQR_drop.csv"), index=False)
+    visualize_outliers(original_data, data_cleaned_IQR_drop, output_dir, DetectOutlierMethod.IQR, HandleOutlierMethod.DROP, columns_subset)
 
     # Drop outliers using ZSCORE method
     data = original_data.copy()
-    data_cleaned_zscore_drop = handle_outliers(data, HandleOutlierMethod.CAP_WITH_BOUNDARIES, outliers_zscore, cap_boundries_zscore)
+    data_cleaned_zscore_drop = handle_outliers(data, HandleOutlierMethod.DROP, outliers_zscore, cap_boundries_zscore)
     # Save the cleaned dataset is not empty
-    if not data_cleaned_zscore_drop.empty > 0:
-        data_cleaned_zscore_drop.to_csv(path.join(cleaned_data_dir, "dataset_cleaned_zscore_drop.csv"), index=False)
+    if not data_cleaned_zscore_drop.empty:
+        data_cleaned_zscore_drop.to_csv(path.join(output_dir, "dataset_cleaned_zscore_drop.csv"), index=False)
+    
+    # Drop outliers using ISOLATION_FOREST method
+    data = original_data.copy()
+    data_cleaned_isolation_forest_drop = handle_outliers(data, HandleOutlierMethod.DROP, outliers_isolation_forest, cap_boundries_isolation_forest)
+    # Save the cleaned dataset is not empty
+    if not data_cleaned_isolation_forest_drop.empty:
+        data_cleaned_isolation_forest_drop.to_csv(path.join(output_dir, "dataset_cleaned_isolation_forest_drop.csv"), index=False)
+
+    # Drop outliers using LOCAL_OUTLIER_FACTOR method
+    data = original_data.copy()
+    data_cleaned_local_outlier_factor_drop = handle_outliers(data, HandleOutlierMethod.DROP, outliers_local_outlier_factor, cap_boundries_local_outlier_factor)
+    # Save the cleaned dataset is not empty
+    if not data_cleaned_local_outlier_factor_drop.empty:
+        data_cleaned_local_outlier_factor_drop.to_csv(path.join(output_dir, "dataset_cleaned_local_outlier_factor_drop.csv"), index=False)
+
+    # -------------------------------
+    # Handle outliers by REPLACE_WITH_MEDIAN method based on outliers detected via IQR, ZSCORE, ISOLATION_FOREST, LOCAL_OUTLIER_FACTOR methods
+    # -------------------------------
+
+    # Replace outliers with median using IQR method
+    data = original_data.copy()
+    data_cleaned_IQR_replace_with_median = handle_outliers(data, HandleOutlierMethod.REPLACE_WITH_MEDIAN, outliers_IQR, cap_boundries_IQR)
+    # Save the cleaned dataset is not empty
+    if not data_cleaned_IQR_replace_with_median.empty:
+        data_cleaned_IQR_replace_with_median.to_csv(path.join(output_dir, "dataset_cleaned_IQR_replace_with_median.csv"), index=False)
+
+    # Replace outliers with median using ZSCORE method
+    data = original_data.copy()
+    data_cleaned_zscore_replace_with_median = handle_outliers(data, HandleOutlierMethod.REPLACE_WITH_MEDIAN, outliers_zscore, cap_boundries_zscore)
+    # Save the cleaned dataset is not empty
+    if not data_cleaned_zscore_replace_with_median.empty:
+        data_cleaned_zscore_replace_with_median.to_csv(path.join(output_dir, "dataset_cleaned_zscore_replace_with_median.csv"), index=False)
+    
+    # Replace outliers with median using ISOLATION_FOREST method
+    data = original_data.copy()
+    data_cleaned_isolation_forest_replace_with_median = handle_outliers(data, HandleOutlierMethod.REPLACE_WITH_MEDIAN, outliers_isolation_forest, cap_boundries_isolation_forest)
+    # Save the cleaned dataset is not empty
+    if not data_cleaned_isolation_forest_replace_with_median.empty:
+        data_cleaned_isolation_forest_replace_with_median.to_csv(path.join(output_dir, "dataset_cleaned_isolation_forest_replace_with_median.csv"), index=False)
+
+    # Replace outliers with median using LOCAL_OUTLIER_FACTOR method
+    data = original_data.copy()
+    data_cleaned_local_outlier_factor_replace_with_median = handle_outliers(data, HandleOutlierMethod.REPLACE_WITH_MEDIAN, outliers_local_outlier_factor, cap_boundries_local_outlier_factor)
+    # Save the cleaned dataset is not empty
+    if not data_cleaned_local_outlier_factor_replace_with_median.empty:
+        data_cleaned_local_outlier_factor_replace_with_median.to_csv(path.join(output_dir, "dataset_cleaned_local_outlier_factor_replace_with_median.csv"), index=False)
+
+    # -------------------------------
+    # Handle outliers by CAP_WITH_BOUNDARIES method based on outliers detected via IQR, ZSCORE, ISOLATION_FOREST, LOCAL_OUTLIER_FACTOR methods
+    # -------------------------------
+
+    # Cap outliers with boundries using IQR method
+    data = original_data.copy()
+    data_cleaned_IQR_cap_with_boundries = handle_outliers(data, HandleOutlierMethod.CAP_WITH_BOUNDARIES, outliers_IQR, cap_boundries_IQR)
+    # Save the cleaned dataset is not empty
+    if not data_cleaned_IQR_cap_with_boundries.empty:
+        data_cleaned_IQR_cap_with_boundries.to_csv(path.join(output_dir, "dataset_cleaned_IQR_cap_with_boundries.csv"), index=False)
+
+    # Cap outliers with boundries using ZSCORE method
+    data = original_data.copy()
+    data_cleaned_zscore_cap_with_boundries = handle_outliers(data, HandleOutlierMethod.CAP_WITH_BOUNDARIES, outliers_zscore, cap_boundries_zscore)
+    # Save the cleaned dataset is not empty
+    if not data_cleaned_zscore_cap_with_boundries.empty:
+        data_cleaned_zscore_cap_with_boundries.to_csv(path.join(output_dir, "dataset_cleaned_zscore_cap_with_boundries.csv"), index=False)
+    
+    # Cap outliers with boundries using ISOLATION_FOREST method
+    data = original_data.copy()
+    data_cleaned_isolation_forest_cap_with_boundries = handle_outliers(data, HandleOutlierMethod.CAP_WITH_BOUNDARIES, outliers_isolation_forest, cap_boundries_isolation_forest)
+    # Save the cleaned dataset is not empty
+    if not data_cleaned_isolation_forest_cap_with_boundries.empty:
+        data_cleaned_isolation_forest_cap_with_boundries.to_csv(path.join(output_dir, "dataset_cleaned_isolation_forest_cap_with_boundries.csv"), index=False)
+
+    # Cap outliers with boundries using LOCAL_OUTLIER_FACTOR method
+    data = original_data.copy()
+    data_cleaned_local_outlier_factor_cap_with_boundries = handle_outliers(data, HandleOutlierMethod.CAP_WITH_BOUNDARIES, outliers_local_outlier_factor, cap_boundries_local_outlier_factor)
+    # Save the cleaned dataset is not empty
+    if not data_cleaned_local_outlier_factor_cap_with_boundries.empty:
+        data_cleaned_local_outlier_factor_cap_with_boundries.to_csv(path.join(output_dir, "dataset_cleaned_local_outlier_factor_cap_with_boundries.csv"), index=False)
 
 
 if __name__ == "__main__":

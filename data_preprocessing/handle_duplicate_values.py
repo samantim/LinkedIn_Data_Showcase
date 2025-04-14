@@ -51,7 +51,7 @@ def handle_duplicate_values_exact(data : pd.DataFrame, subset : List = None) -> 
         # keep='last': Marks duplicates as True, except for the last occurrence.
         # keep=False: Marks all duplicates (including the first and last) as True.
     data_duplicated = data.duplicated(keep=False, subset=subset)
-    logging.info(f"Dataset has {data.shape[0]} rows before handling duplicate values.\nTop 10 of duplicate values are (Totally {data_duplicated.sum()} rows - including all duplicates, but from each group first one will remain and others will be removed):\n{data[data_duplicated]}")
+    logging.info(f"Dataset has {data.shape[0]} rows before handling duplicate values.\nTop 10 of duplicate values are (Totally {data_duplicated.sum()} rows - including all duplicates, but from each group first one will remain and others will be removed):\n{data[data_duplicated].head(10)}")
 
     # Remove duplicate values
     # Subset is list of column names which we want to participate in the duplicate recognition
@@ -143,7 +143,7 @@ def handle_duplicate_values_fuzzy(data : pd.DataFrame, subset : List = None, rat
 
     # Check dataset to know how many duplicate values exist
     # Find duplicate values
-    logging.info(f"Dataset has {data.shape[0]} rows before handling duplicate values.\nTop 10 of duplicate values are (Totally {len(data_duplicated_index_show)} rows - including all duplicates, but from each group first one will remain and others will be removed):\n{data.iloc[data_duplicated_index_show]}")
+    logging.info(f"Dataset has {data.shape[0]} rows before handling duplicate values.\nTop 10 of duplicate values are (Totally {len(data_duplicated_index_show)} rows - including all duplicates, but from each group first one will remain and others will be removed):\n{data.iloc[data_duplicated_index_show].head(10)}")
 
     # Remove duplicate values
     data = data.drop(data_duplicated_index_drop)
@@ -196,26 +196,26 @@ def main():
     
     # Create a folder for cleaned datasets
     dataset_dir = path.dirname(dataset_path)
-    cleaned_data_dir = path.join(dataset_dir, "../", "cleaned_data_handle_duplicate_values")
+    output_dir = path.join(dataset_dir, "../", "output_handle_duplicate_values")
     # Remove the directory if exists because some of the files may not need to create based on the program arguments
-    if path.exists(cleaned_data_dir):
-        shutil.rmtree(cleaned_data_dir)
+    if path.exists(output_dir):
+        shutil.rmtree(output_dir)
     # Create the folder
-    makedirs(cleaned_data_dir, exist_ok=True)
+    makedirs(output_dir, exist_ok=True)
 
     # Handle duplicate values using drop method
     data = original_data.copy()
     data_cleaned_drop = handle_duplicate_values_exact(data=data, subset=duplicate_columns_subset)
     # Save the cleaned dataset by dropping rows if the cleaned dataset is not empty
     if not data_cleaned_drop.empty:
-        data_cleaned_drop.to_csv(path.join(cleaned_data_dir, "dataset_cleaned_drop.csv"), index=False)
+        data_cleaned_drop.to_csv(path.join(output_dir, "dataset_cleaned_drop.csv"), index=False)
 
     # Handle duplicate values using fuzzy method
     data = original_data.copy()
     data_cleaned_fuzzy = handle_duplicate_values_fuzzy(data=data, subset=duplicate_columns_subset, ratio_range = ratio_range)  
     # Save the cleaned dataset by dropping rows if the cleaned dataset is not empty
     if not data_cleaned_fuzzy.empty:
-        data_cleaned_fuzzy.to_csv(path.join(cleaned_data_dir, "dataset_cleaned_fuzzy.csv"), index=False)
+        data_cleaned_fuzzy.to_csv(path.join(output_dir, "dataset_cleaned_fuzzy.csv"), index=False)
 
 
 if __name__ == "__main__":
