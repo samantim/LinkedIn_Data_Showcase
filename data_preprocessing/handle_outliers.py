@@ -3,7 +3,7 @@ import numpy as np
 from enum import Enum
 import sys
 from os import path, makedirs
-from typing import List, Dict
+from typing import List, Dict, Tuple
 import shutil
 import logging
 
@@ -17,7 +17,7 @@ class DetectOutlierMethod(Enum):
 class HandleOutlierMethod(Enum):
     DROP = 1
     REPLACE_WITH_MEDIAN = 2
-    CAP_WITH_BANDS = 3
+    CAP_WITH_BOUNDARIES = 3
 
 def config_logging():
     # This function configs logging and prepares it for logging process
@@ -59,17 +59,20 @@ def get_observing_columns(data : pd.DataFrame, columns_subset : List) -> List:
         else:
             # If there is a valid subset, it is considered as the observing columns otherwise all nemuric columns are considered
             observing_columns = columns_subset if columns_subset else numeric_columns
-            return observing_columns
     except:
         logging.error("The columns subset is not valid!")
         return []
 
-def detect_outliers(data : pd.DataFrame, detect_outlier_method : DetectOutlierMethod, columns_subset : List = None) -> pd.DataFrame:
+    return observing_columns    
+
+
+def detect_outliers(data : pd.DataFrame, detect_outlier_method : DetectOutlierMethod, columns_subset : List = None) -> Tuple:
     # Check if column_subset is valid
     observing_columns = get_observing_columns(data, columns_subset)
-    if len(observing_columns) == 0: return pd.DataFrame()
+    if len(observing_columns) == 0: return dict(), dict()
 
     outliers = {}
+    boundries = {}
     # Check detecting method and run the following block
     match detect_outlier_method:
         case DetectOutlierMethod.IQR:
@@ -80,23 +83,30 @@ def detect_outliers(data : pd.DataFrame, detect_outlier_method : DetectOutlierMe
                 IQR = Q3 - Q1
                 # Extract outliers based on IQR method
                 outliers[col] = data.loc[(data[col] < Q1 - 1.5 * IQR) | (data[col] > Q3 + 1.5 * IQR)].index.to_list()
+                boundries[col] = (Q1 - 1.5 * IQR, Q3 + 1.5 * IQR)
 
         case DetectOutlierMethod.ZSCORE:
-            pass
+            for col in observing_columns:
+                mean = data[col].mean()
+                std = data[col].std()
+                
+                # Extract outliers based on Z-Score method
+                # Z-Score = (data - mean)/std  -->  to be inlier  -->  -3 < Z-Score < 3
+                outliers[col] = data.loc[(data[col] < mean - 3 * std) | (data[col] > mean + 3 * std)].index.to_list()
+                boundries[col] = (mean - 3 * std, mean + 3 * std)
+
         case DetectOutlierMethod.ISOLATION_FOREST:
             pass
         case DetectOutlierMethod.LOCAL_OUTLIER_FACTOR:
             pass
         case DetectOutlierMethod.ONECLASS_SVM:
             pass
+    
+    # Output of the function is a Tuple consists of oulier indexes dict and boundries on inliers dict
+    return outliers, boundries
 
-    return outliers
 
-def handle_outliers(data : pd.DataFrame, handle_outlier_method : HandleOutlierMethod, columns_subset : List = None, outliers : Dict = {}) -> pd.DataFrame:
-    # Check if column_subset is valid
-    observing_columns = get_observing_columns(data, columns_subset)
-    if len(observing_columns) == 0: return pd.DataFrame()
-
+def handle_outliers(data : pd.DataFrame, handle_outlier_method : HandleOutlierMethod, outliers : Dict = {}, boundries : Dict = {}) -> pd.DataFrame :
     # If the outlier dict is empty, the output is the original data
     if len(outliers) == 0: return data
 
@@ -112,10 +122,16 @@ def handle_outliers(data : pd.DataFrame, handle_outlier_method : HandleOutlierMe
             # Drop all outliers
             data = data.drop(all_drop_indexes)
         case HandleOutlierMethod.REPLACE_WITH_MEDIAN:
-            pass
-        case HandleOutlierMethod.CAP_WITH_BANDS:
-            pass
-    
+            for col in outliers.keys():
+                # For each column which has outliers, all the outliers replace with Median of that column
+                data.loc[outliers[col], col] = data[col].median()
+        case HandleOutlierMethod.CAP_WITH_BOUNDARIES:
+            for col in outliers.keys():
+                # For each column which has outliers, all the outliers cap (clip) with boundry values of that column
+                lower, upper = boundries[col]
+                print(lower, upper)
+                data.loc[outliers[col], col] = data.loc[outliers[col], col].clip(lower, upper)
+
     # Check dataset rows after removing duplicate rows
     logging.info(f"Dataset has {data.shape[0]} rows after handling outliers.")
 
@@ -161,14 +177,25 @@ def main():
 
     # Detect outliers using IQR method
     data = original_data.copy()
-    outliers_IQR = detect_outliers(data, DetectOutlierMethod.IQR, columns_subset)
+    outliers_IQR, cap_boundries_IQR = detect_outliers(data, DetectOutlierMethod.IQR, columns_subset)
+
+    # Detect outliers using IQR method
+    data = original_data.copy()
+    outliers_zscore, cap_boundries_zscore = detect_outliers(data, DetectOutlierMethod.ZSCORE, columns_subset)
 
     # Drop outliers using IQR method
     data = original_data.copy()
-    data_cleaned_IQR_drop = handle_outliers(data, HandleOutlierMethod.DROP, columns_subset, outliers_IQR)
+    data_cleaned_IQR_drop = handle_outliers(data, HandleOutlierMethod.CAP_WITH_BOUNDARIES, outliers_IQR, cap_boundries_IQR)
     # Save the cleaned dataset is not empty
-    if not data_cleaned_IQR_drop.empty:
+    if not data_cleaned_IQR_drop.empty > 0:
         data_cleaned_IQR_drop.to_csv(path.join(cleaned_data_dir, "dataset_cleaned_IQR_drop.csv"), index=False)
+
+    # Drop outliers using ZSCORE method
+    data = original_data.copy()
+    data_cleaned_zscore_drop = handle_outliers(data, HandleOutlierMethod.CAP_WITH_BOUNDARIES, outliers_zscore, cap_boundries_zscore)
+    # Save the cleaned dataset is not empty
+    if not data_cleaned_zscore_drop.empty > 0:
+        data_cleaned_zscore_drop.to_csv(path.join(cleaned_data_dir, "dataset_cleaned_zscore_drop.csv"), index=False)
 
 
 if __name__ == "__main__":
