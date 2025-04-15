@@ -71,9 +71,11 @@ def get_observing_columns(data : pd.DataFrame, columns_subset : List) -> List:
     return observing_columns    
 
 
-def detect_outliers(data : pd.DataFrame, detect_outlier_method : DetectOutlierMethod, columns_subset : List = None, contamination_rate : float | str = "auto" , n_neighbors : int = 20) -> Tuple:
-    # Parameter contamination_rate is used for training ISOLATION FOREST LOCAL OUTLIER FACTOR models to set the boundries for outliers
-    # Parameter n_neighbors is used for training OUTLIER FACTOR models to set the number of observing neighbors
+def detect_outliers(data : pd.DataFrame, detect_outlier_method : DetectOutlierMethod, columns_subset : List = None, contamination_rate : float | str = "auto" , n_neighbors : int = 20, per_column_detection : bool = True) -> Tuple:
+    # Parameter contamination_rate is used for training ISOLATION FOREST LOCAL OUTLIER FACTOR methods to set the boundries for outliers
+    # Parameter n_neighbors is used for training OUTLIER FACTOR methods to set the number of observing neighbors
+    # Parameter per_column_detection is used for training ISOLATION FOREST LOCAL OUTLIER FACTOR methods, as their main usage in analyzing multivariate data rather than univariates
+    # but in case of comparison, I include both per-column and all-columns approaches for these methods
 
     # Check if column_subset is valid
     observing_columns = get_observing_columns(data, columns_subset)
@@ -114,30 +116,54 @@ def detect_outliers(data : pd.DataFrame, detect_outlier_method : DetectOutlierMe
                 boundries[col] = (mean - 3 * std, mean + 3 * std)
 
         case DetectOutlierMethod.ISOLATION_FOREST:
-            for col in observing_columns:
+            if per_column_detection:
+                for col in observing_columns:
+                    # Create an object of the IsolationForest class, then train it and get the predictions based on the contamination_rate
+                    isolation_forest = IsolationForest(contamination=contamination_rate, random_state=42)
+                    # Be careful about the input formation. e.g., fit_predict accepts dataframe not a series. So, should give data[[col]] not data[col]
+                    predictions = isolation_forest.fit_predict(data[[col]])
+                    # if the prediction == -1 means it is an outlier
+                    outliers[col] = data[predictions == -1].index.to_list()
+                    # Isolation forest method, rather than IQR and Z-Score, does not have native boundries. So, we use the min and max value of inliers for that
+                    inliers = data.loc[~data.index.isin(outliers[col]), col]
+                    boundries[col] = (inliers.min(), inliers.max())
+            else:
                 # Create an object of the IsolationForest class, then train it and get the predictions based on the contamination_rate
                 isolation_forest = IsolationForest(contamination=contamination_rate, random_state=42)
-                # Be careful about the input formation. e.g., fit_predict accepts dataframe not a series. So, should give data[[col]] not data[col]
-                predictions = isolation_forest.fit_predict(data[[col]])
+                # Train the model based on all columns under observation
+                predictions = isolation_forest.fit_predict(data[observing_columns])
                 # if the prediction == -1 means it is an outlier
-                outliers[col] = data[predictions == -1].index.to_list()
-                # Isolation forest method, rather than IQR and Z-Score, does not have native boundries. So, we use the min and max value of inliers for that
-                lower = data[col].loc[~data.index.isin(outliers[col])].min()
-                upper = data[col].loc[~data.index.isin(outliers[col])].max()
-                boundries[col] = (lower, upper)
+                outliers_indexes = data[predictions == -1].index.to_list()
+                for col in observing_columns:
+                    outliers[col] = outliers_indexes
+                    # Isolation forest method, rather than IQR and Z-Score, does not have native boundries. So, we use the min and max value of inliers for that
+                    inliers = data.loc[~data.index.isin(outliers[col]), col]
+                    boundries[col] = (inliers.min(), inliers.max())
 
         case DetectOutlierMethod.LOCAL_OUTLIER_FACTOR:
-            for col in observing_columns:
+            if per_column_detection:
+                for col in observing_columns:
+                    # Create an object of the LocalOutlierFactor class, then train it and get the predictions based on the contamination_rate and n_neighbors
+                    local_outlier_factor = LocalOutlierFactor(contamination=contamination_rate, n_neighbors=n_neighbors)
+                    # Be careful about the input formation. e.g., fit_predict accepts dataframe not a series. So, should give data[[col]] not data[col]
+                    predictions = local_outlier_factor.fit_predict(data[[col]])
+                    # if the prediction == -1 means it is an outlier
+                    outliers[col] = data[predictions == -1].index.to_list()
+                    # Local outlier factor method, rather than IQR and Z-Score, does not have native boundries. So, we use the min and max value of inliers for that
+                    inliers = data.loc[~data.index.isin(outliers[col]), col]
+                    boundries[col] = (inliers.min(), inliers.max())
+            else:
                 # Create an object of the LocalOutlierFactor class, then train it and get the predictions based on the contamination_rate and n_neighbors
                 local_outlier_factor = LocalOutlierFactor(contamination=contamination_rate, n_neighbors=n_neighbors)
-                # Be careful about the input formation. e.g., fit_predict accepts dataframe not a series. So, should give data[[col]] not data[col]
-                predictions = local_outlier_factor.fit_predict(data[[col]])
+                # Train the model based on all columns under observation
+                predictions = local_outlier_factor.fit_predict(data[observing_columns])
                 # if the prediction == -1 means it is an outlier
-                outliers[col] = data[predictions == -1].index.to_list()
-                # Local outlier factor method, rather than IQR and Z-Score, does not have native boundries. So, we use the min and max value of inliers for that
-                lower = data[col].loc[~data.index.isin(outliers[col])].min()
-                upper = data[col].loc[~data.index.isin(outliers[col])].max()
-                boundries[col] = (lower, upper)
+                outliers_indexes = data[predictions == -1].index.to_list()
+                for col in observing_columns:
+                    outliers[col] = outliers_indexes
+                    # Local outlier factor method, rather than IQR and Z-Score, does not have native boundries. So, we use the min and max value of inliers for that
+                    inliers = data.loc[~data.index.isin(outliers[col]), col]
+                    boundries[col] = (inliers.min(), inliers.max())
 
     # Output of the function is a Tuple consists of oulier indexes dict and boundries on inliers dict
     return outliers, boundries
@@ -258,7 +284,7 @@ def main():
 
     # Detect outliers
     for detect_outlier_method in list(DetectOutlierMethod):
-        outliers[detect_outlier_method], cap_boundries[detect_outlier_method] = detect_outliers(original_data, detect_outlier_method, columns_subset)
+        outliers[detect_outlier_method], cap_boundries[detect_outlier_method] = detect_outliers(original_data, detect_outlier_method, columns_subset,"auto",20,False)
 
     # -------------------------------
     # Handle outliers by DROP, REPLACE_WITH_MEDIAN, CAP_WITH_BOUNDARIES methods based on outliers detected via IQR, ZSCORE, ISOLATION_FOREST, LOCAL_OUTLIER_FACTOR methods + Visualizations

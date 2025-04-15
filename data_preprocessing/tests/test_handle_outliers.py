@@ -92,7 +92,7 @@ def test_ZSCORE_CAP_WITH_BOUNDRIES(sample_df):
 
 
 # -------------------------------
-# Test detect = ISOLATION_FOREST and all handle methods
+# Test detect = ISOLATION_FOREST and all handle methods (per_column = True)
 # -------------------------------
 
 def test_ISOLATION_FOREST_DROP(sample_df):
@@ -127,7 +127,42 @@ def test_ISOLATION_FOREST_CAP_WITH_BOUNDRIES(sample_df):
 
 
 # -------------------------------
-# Test detect = LOCAL_OUTLIER_FACTOR and all handle methods
+# Test detect = ISOLATION_FOREST and all handle methods (per_column = False)
+# -------------------------------
+
+def test_ISOLATION_FOREST_DROP_multivariate(sample_df):
+    data = sample_df.copy()
+    outliers, _ = detect_outliers(data, DetectOutlierMethod.ISOLATION_FOREST, per_column_detection=False)
+    result = handle_outliers(data, HandleOutlierMethod.DROP, outliers)
+    assert len(result) < len(data)
+    # outlier_indexes: [0, 5, 8, 9]
+    assert result["B"].to_list() == [12, 99, 100, 102, 105, 107]
+
+
+def test_ISOLATION_FOREST_REPLACE_WITH_MEDIAN_multivariate(sample_df):
+    data = sample_df.copy()
+    outliers, _ = detect_outliers(data, DetectOutlierMethod.ISOLATION_FOREST, per_column_detection=False)
+    result = handle_outliers(data, HandleOutlierMethod.REPLACE_WITH_MEDIAN, outliers)
+    # No row will be removed
+    assert len(result) == len(sample_df)
+    assert result.loc[9, "A"] == sample_df["A"].median()
+    assert result.loc[0, "B"] == sample_df["B"].median()
+    assert result.loc[5, "C"] == sample_df["C"].median()
+
+
+def test_ISOLATION_FOREST_CAP_WITH_BOUNDRIES_multivariate(sample_df):
+    data = sample_df.copy()
+    outliers, boundries = detect_outliers(data, DetectOutlierMethod.ISOLATION_FOREST, per_column_detection=False)
+    result = handle_outliers(data, HandleOutlierMethod.CAP_WITH_BOUNDARIES, outliers, boundries)
+    # No row will be removed
+    assert len(result) == len(sample_df)
+    assert result.loc[1, "A"] == 3.0
+    assert result.loc[0, "B"] == 12.0
+    assert result.loc[5, "C"] == 18.0
+
+
+# -------------------------------
+# Test detect = LOCAL_OUTLIER_FACTOR and all handle methods (per_column = True)
 # -------------------------------
 
 def test_LOCAL_OUTLIER_FACTOR_DROP(sample_df):
@@ -158,3 +193,35 @@ def test_LOCAL_OUTLIER_FACTOR_CAP_WITH_BOUNDRIES(sample_df):
     assert result.loc[0, "B"] == 99.0
     assert result.loc[5, "C"] == 20.0
     assert result["A"].equals(sample_df["A"])
+
+
+# -------------------------------
+# Test detect = LOCAL_OUTLIER_FACTOR and all handle methods (per_column = false)
+# -------------------------------
+
+def test_LOCAL_OUTLIER_FACTOR_DROP_multivariate(sample_df):
+    data = sample_df.copy()
+    outliers, _ = detect_outliers(data, DetectOutlierMethod.LOCAL_OUTLIER_FACTOR, n_neighbors=3, per_column_detection=False)
+    result = handle_outliers(data, HandleOutlierMethod.DROP, outliers)
+    assert len(result) < len(data)
+    # outlier_indexes: [0, 1, 5, 8, 9]
+    assert result["B"].to_list() == [99, 100, 102, 105, 107]
+
+
+def test_LOCAL_OUTLIER_FACTOR_REPLACE_WITH_MEDIAN_multivariate(sample_df):
+    data = sample_df.copy()
+    outliers, _ = detect_outliers(data, DetectOutlierMethod.LOCAL_OUTLIER_FACTOR, n_neighbors=3, per_column_detection=False)
+    result = handle_outliers(data, HandleOutlierMethod.REPLACE_WITH_MEDIAN, outliers)
+    # No row will be removed
+    assert len(result) == len(sample_df)
+    assert result.loc[0, "B"] == sample_df["B"].median()
+    assert result.loc[5, "C"] == sample_df["C"].median()
+
+def test_LOCAL_OUTLIER_FACTOR_CAP_WITH_BOUNDRIES_multivariate(sample_df):
+    data = sample_df.copy()
+    outliers, boundries = detect_outliers(data, DetectOutlierMethod.LOCAL_OUTLIER_FACTOR, n_neighbors=3, per_column_detection=False)
+    result = handle_outliers(data, HandleOutlierMethod.CAP_WITH_BOUNDARIES, outliers, boundries)
+    # No row will be removed
+    assert len(result) == len(sample_df)
+    assert result.loc[0, "B"] == 99.0
+    assert result.loc[5, "C"] == 18.0
