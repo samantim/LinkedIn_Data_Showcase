@@ -35,14 +35,18 @@ def load_data(file_path : str) -> pd.DataFrame:
 
 def convert_datatype_auto(data : pd.DataFrame) -> pd.DataFrame:
     # Show the data types before applying any conversion
-    print(f"Before automatic datatype conversion, the datatype are as follows:\n{data.dtypes}")
-
-    # Convert data type of the numeric-like columns which has object type
-    data = data.infer_objects()
+    logging.info(f"Before automatic datatype conversion, the datatype are as follows:\n{data.dtypes}")
 
     # If the data type of the columns is not numeric, it try to convert it to datatime type
     # If the column content is not datetime no changes will happen
     for col in data.columns:
+        try:
+            # Convert data type of the numeric-like columns which has object type
+            if data[col].dtype == "object":
+                data[col] = pd.to_numeric(data[col])
+        except:
+            pass
+
         try:
             if not pd.api.types.is_numeric_dtype(data[col]):
                 data[col] = pd.to_datetime(data[col])
@@ -50,7 +54,7 @@ def convert_datatype_auto(data : pd.DataFrame) -> pd.DataFrame:
             pass
 
     # Show the data types after applying auto conversions
-    print(f"After automatic datatype conversion, the datatype are as follows:\n{data.dtypes}")
+    logging.info(f"After automatic datatype conversion, the datatype are as follows:\n{data.dtypes}")
 
     return data    
 
@@ -65,7 +69,7 @@ def convert_datatype_ud(data : pd.DataFrame, convert_scenario : Dict) -> pd.Data
         convert_scenario[key] = [item.strip() for item in convert_scenario[key]]
 
     # Show the data types before applying any conversion
-    print(f"Before automatic datatype conversion, the datatype are as follows:\n{data.dtypes}")
+    logging.info(f"Before automatic datatype conversion, the datatype are as follows:\n{data.dtypes}")
     
     # Check all the provided column names to be in the dataset
     if not all(col in data.columns for col in convert_scenario["column"]):
@@ -112,8 +116,8 @@ def convert_datatype_ud(data : pd.DataFrame, convert_scenario : Dict) -> pd.Data
             return data
     
     # Show the data types after applying auto conversions
-    print(f"After automatic datatype conversion, the datatype are as follows:\n{data.dtypes}")
-    print(data)
+    logging.info(f"After automatic datatype conversion, the datatype are as follows:\n{data.dtypes}")
+
     return data
 
 

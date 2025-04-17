@@ -6,7 +6,7 @@ import os
 # Add the parent directory to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from handle_duplicate_values import handle_duplicate_values_exact, handle_duplicate_values_fuzzy, config_logging
+from handle_duplicate_values import handle_duplicate_values_exact, handle_duplicate_values_fuzzy
 
 @pytest.fixture
 def sample_data():
