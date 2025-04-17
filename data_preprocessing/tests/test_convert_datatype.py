@@ -63,3 +63,16 @@ def test_convert_datatype_ud_fail_type():
     }
     result_df = convert_datatype_ud(df, scenario)
     assert result_df.equals(df)
+
+
+def test_convert_datatype_ud_fail_defected_scenario():
+    df = pd.DataFrame({
+        "col1": ["80", "90"]
+    })
+    scenario = {
+        "column": ["col1"],
+        "datatype": ["dtype1", "dtype2"],
+        "format": [""]
+    }
+    result_df = convert_datatype_ud(df, scenario)
+    assert result_df.equals(df)
