@@ -5,7 +5,6 @@ import shutil
 import logging
 from typing import Dict
 
-
 def config_logging():
     # This function configs logging and prepares it for logging process
     # Note that logging creates logs from every operation has been done in the program which is the more flexible, durable, and powerful than only using print
@@ -66,12 +65,12 @@ def convert_datatype_ud(data : pd.DataFrame, convert_scenario : Dict) -> pd.Data
     
     # Check all the provided column names to be in the dataset
     if not all(col in data.columns for col in convert_scenario["column"]):
-        logging.error("At least one of the columns provides in the scenario is not valid!")
+        logging.error("At least one of the columns provided in the scenario is not valid!")
         return data
     
     # Check all the provided datatypes to be valid
     if not all(dt in ["float", "int", "datetime"] for dt in convert_scenario["datatype"]):
-        logging.error("At least one of the type provides in the scenario is not valid! The only acceptable data types are: {float, int, datetime}")
+        logging.error("At least one of the type provided in the scenario is not valid! The only acceptable data types are: {float, int, datetime}")
         return data
     
     # create a list of tuples based on the convert_scenario dict
@@ -113,6 +112,7 @@ def convert_datatype_ud(data : pd.DataFrame, convert_scenario : Dict) -> pd.Data
     print(data)
     return data
 
+
 def main():
     # Start logging
     config_logging()
@@ -126,25 +126,15 @@ def main():
         match len(sys.argv):
             case 2:
                 dataset_path = sys.argv[1]
-                duplicate_columns_subset = None
-                ratio_range = None
-            case 3:
+                columns_subset = None
+                columns_datatype = None
+                columns_format = None
+            case 5:
                 dataset_path = sys.argv[1]
                 # This parameter should pass to the program in comma seperated format e.g., "First Name,Last Name" (Obviously column names are case-sebsitive)
-                if sys.argv[2] == "None":
-                    duplicate_columns_subset = None
-                else:
-                    duplicate_columns_subset = sys.argv[2].split(",")
-                ratio_range = None
-            case 4:
-                dataset_path = sys.argv[1]
-                # This parameter should pass to the program in comma seperated format e.g., "First Name,Last Name" (Obviously column names are case-sebsitive)
-                if sys.argv[2] == "None":
-                    duplicate_columns_subset = None
-                else:
-                    duplicate_columns_subset = sys.argv[2].split(",")
-                # Ratio range should be passed as a tuple e.g., 80,90
-                ratio_range = tuple([int(item) for item in sys.argv[3].split(",")])
+                columns_subset = sys.argv[2].split(",")
+                columns_datatype = sys.argv[3].split(",")
+                columns_format = sys.argv[4].split(",")
 
 
     # Load the dataset
@@ -155,17 +145,28 @@ def main():
     
     # Create a folder for cleaned datasets
     dataset_dir = path.dirname(dataset_path)
-    output_dir = path.join(dataset_dir, "../", "output_handle_duplicate_values")
+    output_dir = path.join(dataset_dir, "../", "output_convert_datatype")
     # Remove the directory if exists because some of the files may not need to create based on the program arguments
     if path.exists(output_dir):
         shutil.rmtree(output_dir)
     # Create the folder
     makedirs(output_dir, exist_ok=True)
 
+    # Convert data types automatically
     data = original_data.copy()
-    # convert_datatype_auto(data)
+    data_converted = convert_datatype_auto(data)
+    # Save the converted dataset if the it is not empty
+    if not data_converted.empty:
+        data_converted.to_csv(path.join(output_dir, "dataset_converted_auto.csv"), index=False)
 
-    convert_datatype_ud(data, {"column":["High School Percentage", "Admission Test Score", "Test Date"], "datatype":["int", "float", "datetime"], "format":["","", "%m/%d/%Y"]})
+    # Convert data types user-defined
+    if columns_subset and columns_datatype and columns_format:
+        if len(columns_subset) > 0 and len(columns_datatype) > 0 and len(columns_format) > 0:
+            data = original_data.copy()
+            data_converted = convert_datatype_ud(data, {"column":columns_subset, "datatype":columns_datatype, "format":columns_format})
+            # Save the converted dataset if the it is not empty
+            if not data_converted.empty:
+                data_converted.to_csv(path.join(output_dir, "dataset_converted_ud.csv"), index=False)
 
 
 if __name__ == "__main__":
