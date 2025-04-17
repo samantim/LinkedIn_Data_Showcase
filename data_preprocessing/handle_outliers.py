@@ -54,6 +54,8 @@ def load_data(file_path : str) -> pd.DataFrame:
 
 def get_observing_columns(data : pd.DataFrame, columns_subset : List) -> List:
     # Prepare observing columns
+    # Strip whitespaces
+    if columns_subset: columns_subset = [col.strip() for col in columns_subset]
     try:
         # If columns_subset only has numeric columns is valid
         numeric_columns = data.select_dtypes(include="number").columns
@@ -214,13 +216,12 @@ def visualize_outliers(original_data : pd.DataFrame, cleaned_data : pd.DataFrame
     # Create the folder
     makedirs(visualization_dir, exist_ok=True)
 
-
+    # Set the resolution and quality
+    fig = plt.figure(figsize=(16, 9), dpi=600)
+    # Setup the layout to fit in the figure
+    plt.tight_layout(pad=1, h_pad=0.5, w_pad=0.5)   
+    
     for col in observing_columns:
-        # Set the resolution and quality
-        fig = plt.figure(figsize=(16, 9), dpi=600)
-        # Setup the layout to fit in the figure
-        plt.tight_layout(pad=1, h_pad=0.5, w_pad=0.5)         
-        
         plt.subplot(2,2,1)
         sns.boxplot(original_data[col])
 
@@ -237,6 +238,9 @@ def visualize_outliers(original_data : pd.DataFrame, cleaned_data : pd.DataFrame
         file_name = path.join(visualization_dir, "_".join([detect_outlier_method.name, handle_outlier_method.name, col]) + ".png")
         plt.savefig(fname=file_name, format="png", dpi=fig.dpi)
 
+        plt.clf()
+        
+    plt.close()
     
 def main():
     # Start logging

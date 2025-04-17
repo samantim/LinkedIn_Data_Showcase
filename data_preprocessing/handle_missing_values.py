@@ -166,7 +166,7 @@ def main():
                 time_reference_col = ""
             case 3:
                 dataset_path = sys.argv[1]
-                time_reference_col = sys.argv[2]
+                time_reference_col = sys.argv[2].strip()
 
     # Load the dataset
     original_data = load_data(dataset_path)

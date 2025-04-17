@@ -41,7 +41,10 @@ def handle_duplicate_values_exact(data : pd.DataFrame, subset : List = None) -> 
 
     # Check if column_subset is valid
     try:
-        if not subset is None: data[subset]
+        # Strip whitespaces
+        if subset: 
+            subset = [col.strip() for col in subset]
+            data[subset]
     except:
         logging.error("The columns subset is not valid!")
         return pd.DataFrame()
@@ -70,7 +73,10 @@ def handle_duplicate_values_fuzzy(data : pd.DataFrame, subset : List = None, rat
 
     # Check if column_subset is valid
     try:
-        if not subset is None: data[subset]
+        # Strip whitespaces
+        if subset: 
+            subset = [col.strip() for col in subset]
+            data[subset]
     except:
         logging.error("The columns subset is not valid!")
         return pd.DataFrame()

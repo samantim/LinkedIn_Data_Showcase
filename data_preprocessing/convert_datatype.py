@@ -60,6 +60,10 @@ def convert_datatype_ud(data : pd.DataFrame, convert_scenario : Dict) -> pd.Data
     #  "datatype":["int", "datetime"],
     #  "format":["", "%m/%d/%Y"] }
 
+    # Strip whitespaces
+    for key in convert_scenario.keys():
+        convert_scenario[key] = [item.strip() for item in convert_scenario[key]]
+
     # Show the data types before applying any conversion
     print(f"Before automatic datatype conversion, the datatype are as follows:\n{data.dtypes}")
     
@@ -135,7 +139,6 @@ def main():
                 columns_subset = sys.argv[2].split(",")
                 columns_datatype = sys.argv[3].split(",")
                 columns_format = sys.argv[4].split(",")
-
 
     # Load the dataset
     original_data = load_data(dataset_path)

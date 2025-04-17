@@ -45,6 +45,8 @@ def load_data(file_path : str) -> pd.DataFrame:
 
 def get_observing_columns(data : pd.DataFrame, columns_subset : List) -> List:
     # Prepare observing columns
+    # Strip whitespaces
+    if columns_subset: columns_subset = [col.strip() for col in columns_subset]
     try:
         # If columns_subset only has categorical columns is valid
         categorical_columns = data.select_dtypes(exclude="number").columns
@@ -68,27 +70,42 @@ def encode_categorical(data : pd.DataFrame, categorical_encoding_method : Catego
     if len(observing_columns) == 0: return data
 
     match categorical_encoding_method:
+        # Encode the observing columns using label encoder
         case CategoricalEncodingMethod.LABEL_ENCODING:
             label_encoder = LabelEncoder()
             for col in observing_columns:
+                # The names of the new columns are defined and concat them to end of original columns
                 data["_".join([col, "encoded"])] = label_encoder.fit_transform(data[col])
 
         case CategoricalEncodingMethod.ONEHOT_ENCODING:
+            # Encode observing columns using one-hot encoder
             onehot_encoder = OneHotEncoder(sparse_output=False)
             for col in observing_columns:
+                # Create the encoded contents
                 encoded_columns = onehot_encoder.fit_transform(data[[col]])
+                # The column names also created by the model
                 encoded_columns_name = onehot_encoder.get_feature_names_out([col])
+                # Create a dataframe with contents and the column names
                 encoded_df = pd.DataFrame(data = encoded_columns, columns=encoded_columns_name)
+                # Concat the new datafram to end of original columns
                 data = pd.concat([data, encoded_df], axis=1)
 
         case CategoricalEncodingMethod.HASHING:
             for col in observing_columns:
-                n_components=ceil(log2(len(data[col].unique())))
-                hashing = ce.HashingEncoder(n_components = n_components)
+                # Find the log2 of the number of categories (number of unique values in the columns)
+                # It is the optimal number of components to reduce the collisions while having good performance
+                unique_len = len(data[col].unique())
+                # Throw a warning for the less number of unique values
+                if unique_len < 10: logging.warning(f"Hashing for category number less than 10 is not reasonable (column='{col}', category number={unique_len}), and the results would not be promising!")
+                n_components=ceil(log2(unique_len))
+                # Encode the observing columns using hashing encoder
+                hashing = ce.HashingEncoder(n_components = n_components, return_df=True)
+                # Create the encoded contents
                 encoded_columns = hashing.fit_transform(data[[col]])
-                encoded_columns_name = hashing.get_feature_names_out([col])
-                encoded_df = pd.DataFrame(data = encoded_columns, columns=encoded_columns_name)
-                data = pd.concat([data, encoded_df], axis=1)
+                # Enhance the names for more clarification
+                encoded_columns.columns = ["_".join([col,col_gen_name]) for col_gen_name in encoded_columns.columns]
+                # Concat the new datafram to end of original columns
+                data = pd.concat([data, encoded_columns], axis=1)
 
     return data
 
@@ -113,6 +130,7 @@ def main():
                     columns_subset = None
                 else:
                     columns_subset = sys.argv[2].split(",")
+
 
     # Load the dataset
     original_data = load_data(dataset_path)
