@@ -3,15 +3,16 @@ import sys
 from os import path, makedirs
 import shutil
 import logging
-from typing import List
-from sklearn.preprocessing import MinMaxScaler, Normalizer, StandardScaler
+from typing import Dict, List
+from sklearn.preprocessing import MinMaxScaler, StandardScaler, RobustScaler, Normalizer
+from sklearn.compose import ColumnTransformer
 from enum import Enum
 
 
-class CategoricalEncodingMethod(Enum):
-    LABEL_ENCODING = 1
-    ONEHOT_ENCODING = 2
-    HASHING = 3
+class ScalingMethod(Enum):
+    MINMAX_SCALING = 1
+    ZSCORE_STANDARDIZATION = 2
+    ROBUST_SCALING = 3
 
 
 def config_logging():
@@ -47,22 +48,63 @@ def get_observing_columns(data : pd.DataFrame, columns_subset : List) -> List:
     # Strip whitespaces
     if columns_subset: columns_subset = [col.strip() for col in columns_subset]
     try:
-        # If columns_subset only has categorical columns is valid
-        categorical_columns = data.select_dtypes(exclude="number").columns
-        # If columns_subset is not None and one of its columns does not exist in categorical columns
-        if columns_subset and not all(col in categorical_columns for col in columns_subset):
-            logging.error("The columns subset contains numeric columns!")
+        # If columns_subset only has numeric columns is valid
+        numeric_columns = data.select_dtypes(include="number").columns
+        # If columns_subset is not None and one of its columns does not exist in numeric columns
+        if columns_subset and not all(col in numeric_columns for col in columns_subset):
+            logging.error("The columns subset contains non-numeric columns!")
             return []
         else:
-            # If there is a valid subset, it is considered as the observing columns otherwise all categorical columns are considered
-            observing_columns = columns_subset if columns_subset else categorical_columns
+            # If there is a valid subset, it is considered as the observing columns otherwise all nemuric columns are considered
+            observing_columns = columns_subset if columns_subset else numeric_columns
     except:
         logging.error("The columns subset is not valid!")
         return []
 
-    return observing_columns 
+    return observing_columns
 
 
+def scale_feature(data : pd.DataFrame, scale_scenario : Dict, apply_l2normalization : bool = False) -> pd.DataFrame:
+    # Sample scale_scenario:
+    # {"column":["High School Percentage", "Age"],
+    #  "scaling_method":["ROBUST_SCALING", "ZSCORE_STANDARDIZATION"]}
+
+    # Check if column_subset is valid
+    observing_columns = get_observing_columns(data, scale_scenario["column"])
+    if len(observing_columns) == 0: return data
+
+    scale_scenario["scaling_method"] = [sm.strip() for sm in scale_scenario["scaling_method"]]
+    # Check all the provided scaling_method to be valid
+    if not all(sm in [c.name for c in list(ScalingMethod)] for sm in scale_scenario["scaling_method"]):
+        logging.error("At least one of the scaling methods provided in the scenario is not valid! The only acceptable data types are: {MINMAX_SCALING, ZSCORE_STANDARDIZATION, ROBUST_SCALING}")
+        return data
+
+    scale_scenario_zipped = list(zip(observing_columns,scale_scenario["scaling_method"]))
+
+    for column, scaling_method in scale_scenario_zipped:
+        match scaling_method:
+            case ScalingMethod.MINMAX_SCALING.name:
+                minmax_scaler = MinMaxScaler()
+                data[column] = minmax_scaler.fit_transform(data[[column]])
+            case ScalingMethod.ZSCORE_STANDARDIZATION.name:
+                zscore_standardization = StandardScaler()
+                data[column] = zscore_standardization.fit_transform(data[[column]])
+            case ScalingMethod.ROBUST_SCALING.name:
+                robust_scaler = RobustScaler()
+                data[column] = robust_scaler.fit_transform(data[[column]])
+
+    print(data)
+
+    if apply_l2normalization:
+        l2_normalizer = Normalizer()
+        numeric_columns = data.select_dtypes("number")
+        data_transformed = l2_normalizer.fit_transform(numeric_columns)
+        col_number = 0
+        for col in numeric_columns.columns: 
+            data[col] = data_transformed[:,col_number]
+            col_number += 1 
+
+    return data
 
 def main():
     # Start logging
@@ -104,7 +146,10 @@ def main():
     # Create the folder
     makedirs(output_dir, exist_ok=True)
 
-
+    data = original_data.copy()
+    data = scale_feature(data, {"column":columns_subset, "scaling_method":columns_scaling_method}, apply_l2normalization)
+    
+    print(data)
 
 if __name__ == "__main__":
     main()
