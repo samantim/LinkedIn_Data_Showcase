@@ -158,7 +158,6 @@ def main():
     if not data_scaled.empty:
         data_scaled.to_csv(path.join(output_dir, "dataset_scaled.csv"), index=False)
     
-    print(data)
 
 if __name__ == "__main__":
     main()
