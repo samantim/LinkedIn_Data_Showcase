@@ -79,8 +79,11 @@ def scale_feature(data : pd.DataFrame, scale_scenario : Dict, apply_l2normalizat
         logging.error("At least one of the scaling methods provided in the scenario is not valid! The only acceptable data types are: {MINMAX_SCALING, ZSCORE_STANDARDIZATION, ROBUST_SCALING}")
         return data
 
+    # Create a list of tuples (column, scaling_method)
     scale_scenario_zipped = list(zip(observing_columns,scale_scenario["scaling_method"]))
 
+    # For each column in the list, we apply the proper scaling method
+    # Then update the date[column]
     for column, scaling_method in scale_scenario_zipped:
         match scaling_method:
             case ScalingMethod.MINMAX_SCALING.name:
@@ -93,14 +96,16 @@ def scale_feature(data : pd.DataFrame, scale_scenario : Dict, apply_l2normalizat
                 robust_scaler = RobustScaler()
                 data[column] = robust_scaler.fit_transform(data[[column]])
 
-    print(data)
-
+    # If apply_l2normalization then we apply l2 normalization on all numeric columns of the dataset
+    # Since this type of normalization only makes sense if it applies on all numeric columns
     if apply_l2normalization:
         l2_normalizer = Normalizer()
+        # Extract all numeric columns
         numeric_columns = data.select_dtypes("number")
         data_transformed = l2_normalizer.fit_transform(numeric_columns)
         col_number = 0
         for col in numeric_columns.columns: 
+            # Update dataset based on all numeric columns which are normalized
             data[col] = data_transformed[:,col_number]
             col_number += 1 
 
@@ -139,15 +144,19 @@ def main():
     
     # Create a folder for cleaned datasets
     dataset_dir = path.dirname(dataset_path)
-    output_dir = path.join(dataset_dir, "../", "output_encode_categorical")
+    output_dir = path.join(dataset_dir, "../", "output_scale_feature")
     # Remove the directory if exists because some of the files may not need to create based on the program arguments
     if path.exists(output_dir):
         shutil.rmtree(output_dir)
     # Create the folder
     makedirs(output_dir, exist_ok=True)
 
+    # Scale and normalize the dataset
     data = original_data.copy()
-    data = scale_feature(data, {"column":columns_subset, "scaling_method":columns_scaling_method}, apply_l2normalization)
+    data_scaled = scale_feature(data, {"column":columns_subset, "scaling_method":columns_scaling_method}, apply_l2normalization)
+    # Save the converted dataset if the it is not empty
+    if not data_scaled.empty:
+        data_scaled.to_csv(path.join(output_dir, "dataset_scaled.csv"), index=False)
     
     print(data)
 
