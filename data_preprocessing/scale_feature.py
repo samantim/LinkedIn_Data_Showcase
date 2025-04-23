@@ -5,7 +5,6 @@ import shutil
 import logging
 from typing import Dict, List
 from sklearn.preprocessing import MinMaxScaler, StandardScaler, RobustScaler, Normalizer
-from sklearn.compose import ColumnTransformer
 from enum import Enum
 
 
@@ -68,6 +67,10 @@ def scale_feature(data : pd.DataFrame, scale_scenario : Dict, apply_l2normalizat
     # Sample scale_scenario:
     # {"column":["High School Percentage", "Age"],
     #  "scaling_method":["ROBUST_SCALING", "ZSCORE_STANDARDIZATION"]}
+
+    if len(scale_scenario["column"]) != len(scale_scenario["scaling_method"]):
+        logging.error("Number of columns and scaling methods do not match!")
+        return data
 
     # Check if column_subset is valid
     observing_columns = get_observing_columns(data, scale_scenario["column"])
